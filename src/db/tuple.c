@@ -93,12 +93,17 @@ tuple_set_default_value(enum base_types bt, char *buf, int offset)
 void
 tuple_delete(tuple_t t)
 {
-	assert (t != NULL);
 #if 0
+	assert (t != NULL);
+<<<<<<< HEAD
+=======
+#if 0
+>>>>>>> 03c4c3171792f369f578a06fd9716f3773b9cdc8
 	if (t->buf != NULL)
 		free(t->buf);
 #endif
 	memset(t, 0, sizeof(struct tuple));
+#endif
 }
 
 int
