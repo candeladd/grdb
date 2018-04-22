@@ -72,6 +72,8 @@ cli_graph_tuple(char *cmdline, int *pos)
 	nextarg(cmdline, pos, " ", s3);
 	memset(s4, 0, BUFSIZE);
 	nextarg(cmdline, pos, " ", s4);
+
+
 #if _DEBUG
 	printf("s1=[%s] s2=[%s] s3=[%s], s4=[%s]\n", s1, s2, s3, s4);
 #endif

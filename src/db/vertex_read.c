@@ -24,6 +24,7 @@ vertex_read(vertex_t v, schema_t schema, int fd)
 
 	assert(v != NULL);
 #if _DEBUG
+	printf("*****the file that was read was %d\n", fd);
 	printf("vertex_read: read vertex %llu\n", v->id);
 #endif
 	if (schema == NULL)

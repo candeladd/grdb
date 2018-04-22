@@ -53,6 +53,7 @@ cli_component_print(
 	c.efd = open(s, O_RDWR);
 
 	component_print(out, &c, with_tuples);
+
 	fprintf(out, "\n");
 
 	close(c.efd);

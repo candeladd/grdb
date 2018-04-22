@@ -74,6 +74,28 @@ component_find_edge_by_ids(component_t c, edge_t e)
 	return NULL;
 }
 
+edge_t
+component_find_edge_by_id(component_t c, edge_t e)
+{
+	int len;
+
+	assert (c != NULL);
+	assert (e != NULL);
+
+	/*
+	 * Assume e was allocated and e->id1 and e->id2 were set by
+	 * the caller
+	 */
+	len = edge_neighbor_read(e, c->se, c->efd);
+	if (len > 0)
+	{
+		printf("the len was %ld", len);
+		return e;
+	}
+	printf("the len was %ld", len);
+	return NULL;
+}
+
 void
 component_insert_edge(component_t c, edge_t e)
 {
@@ -107,6 +129,7 @@ component_print(FILE *out, component_t c, int with_tuples)
 	buf = malloc(readlen);
 	assert (buf != NULL);
 	memset(buf, 0, readlen);
+	//printf("**************the buffer right now has %s", buf);
 
 	for (off = 0;; off += readlen) {
 		lseek(c->vfd, off, SEEK_SET);

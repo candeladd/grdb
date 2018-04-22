@@ -50,6 +50,7 @@ nextarg(char *ln, int *pos, char *sep, char *arg)
 		return;
 
 	s = arg;
+	
 
 	/* Skip whitespace */
 	ch = ln[*pos];
@@ -62,5 +63,6 @@ nextarg(char *ln, int *pos, char *sep, char *arg)
 		*(s++) = ch;
 		ch = ln[++(*pos)];
 	};
+	//printf("the arg is %s", s);
 	*s = '\0';
 }

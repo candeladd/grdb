@@ -23,7 +23,7 @@ cli_graph_edge(char *cmdline, int *pos)
 	memset(s, 0, BUFSIZE);
 	nextarg(cmdline, pos, " ", s);
 	if (strlen(s) == 0) {
-		printf("Missing vertex id\n");
+		printf("Missing vertex:\n format: graph edge <vertexID> <vertexID>\n");
 		return;
 	}
 	i = atoi(s);

@@ -46,19 +46,91 @@ edge_read(edge_t e, schema_t schema, int fd)
 		}
 		id1 = *((vertexid_t *) buf);
 		id2 = *((vertexid_t *) (buf + sizeof(vertexid_t)));
-
+		
 		if (id1 == e->id1 && id2 == e->id2) {
 			if (e->tuple == NULL)
 				tuple_init(&(e->tuple), schema);
 
 			memset(e->tuple->buf, 0, size);
 			len = read(fd, e->tuple->buf, size);
+		
 #if _DEBUG
 			printf("edge_read: ");
 			printf("read %lu bytes to tuple buffer\n", len);
 #endif
 			return len;
 		}
+	}
+	return 0;
+}
+
+
+
+ssize_t
+edge_neighbor_read(edge_t e, schema_t schema, int fd)
+{
+	off_t off;
+	ssize_t len, size;
+	vertexid_t id1, id2;
+	char buf[sizeof(vertexid_t) << 1];
+
+	assert(e != NULL);
+#if _DEBUG
+	printf("edge_read: read edge (%llu,%llu)\n", e->id1, e->id2);
+#endif
+        if (schema == NULL)
+                size = 0;
+        else
+                size = schema_size(schema);
+#if _DEBUG
+	printf("edge_read: schema size = %lu bytes\n", size);
+#endif
+	int cycle=0;
+	//if we are looking for all edges (i, j) such that i== our vertex
+	//loop through the edges file and look for edges where the
+	//vertex we are checking for is in the ()
+	/* Search for edge in current component */
+	for (off = 0;; off += (sizeof(vertexid_t) << 1) + size) {
+		cycle+=1;
+		//printf("**** I am on cycle %d \n", cycle);
+		lseek(fd, off, SEEK_SET);
+		len = read(fd, buf, sizeof(vertexid_t) << 1);
+		if (len != sizeof(vertexid_t) << 1) {
+#if _DEBUG
+			printf("edge_read:");
+			printf("read %lu bytes to tuple buffer\n", len);
+#endif
+			return (-1);
+		}
+		id1 = *((vertexid_t *) buf);
+		//printf("hoping!!! (%llu)\n", id1);
+		id2 = *((vertexid_t *) (buf + sizeof(vertexid_t)));
+
+		if (id1 == e->id1) {
+									
+			if (e->tuple == NULL && size != 0)
+			{
+				
+				tuple_init(&(e->tuple), schema);
+				memset(e->tuple->buf, 0, size);
+				len = read(fd, e->tuple->buf, size);
+			}
+
+			
+			
+#if _DEBUG
+			//printf("edge_read: ");
+			
+			//printf("read %lu bytes to tuple buffer\n", len);
+			
+			//printf("I got an edge for (%llu)\n", id1);
+			printf("hi neighbor (%llu)\n", id2);
+			
+#endif
+			
+			
+		}
+		
 	}
 	return 0;
 }
