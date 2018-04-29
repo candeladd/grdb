@@ -84,6 +84,16 @@ cli_graph_new(char *cmdline, int *pos)
 	sprintf(s, "%s/%d/%d", grdbdir, n, 0);
 	mkdir(s, 0755);
 
+	/*create component neighbors dir */
+	memset(s, 0, BUFSIZE);
+	sprintf(s, "%s/%d/%d/neighbors", grdbdir, n, 0);
+	mkdir(s, 0755);
+
+	/*create component path dir */
+	memset(s, 0, BUFSIZE);
+	sprintf(s, "%s/%d/%d/path", grdbdir, n, 0);
+	mkdir(s, 0755);
+	
 	/* Create component vertex file */
 	memset(s, 0, BUFSIZE);
 	sprintf(s, "%s/%d/%d/v", grdbdir, n, 0);

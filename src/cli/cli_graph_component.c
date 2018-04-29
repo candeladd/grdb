@@ -32,6 +32,16 @@ cli_graph_component_new()
 	sprintf(s, "%s/%d/%d", grdbdir, gno, n);
 	mkdir(s, 0755);
 
+	/*create component neighbors dir */
+	memset(s, 0, BUFSIZE);
+	sprintf(s, "%s/%d/%d/neighbors", grdbdir, gno, n);
+	mkdir(s, 0755);
+
+	/*create component neighbors dir */
+	memset(s, 0, BUFSIZE);
+	sprintf(s, "%s/%d/%d/path", grdbdir, gno, n);
+	mkdir(s, 0755);
+
 	/* Create component vertex file */
 	memset(s, 0, BUFSIZE);
 	sprintf(s, "%s/%d/%d/v", grdbdir, gno, n);
@@ -50,19 +60,15 @@ cli_graph_component_new()
 static void
 cli_graph_component_neighbors(char *cmdline, int *pos)
 {
-	vertexid_t id1, id2;
-	vertex_t v1, v2;
-	struct vertex v;
+	vertexid_t id1, id2, visited_id;
+	vertex_t v1, visited_v1;
+	struct vertex v, visited_v;
 	struct edge e;
 	edge_t e1;
 	char s[BUFSIZE];
-	char ch;
-	char buf[sizeof(vertexid_t) << 1];
+	char neighbors_file_string[BUFSIZE];
 	struct component c;
-	int fd, i;
-	off_t off;
-	ssize_t len, size;
-
+	int fd, i, neighbors_fd;
 
 	component_init(&c);
     
@@ -72,6 +78,7 @@ cli_graph_component_neighbors(char *cmdline, int *pos)
 	i = atoi(s);
 
 	vertex_init(&v);
+	vertex_init(&visited_v);
 	vertex_set_id(&v, i);
 
 	/* Setup a component for searching */
@@ -91,7 +98,7 @@ cli_graph_component_neighbors(char *cmdline, int *pos)
 	memset(s, 0, BUFSIZE);
 	sprintf(s, "%s/%d/%d/se", grdbdir, gno, cno);
 #if _DEBUG
-	printf("cli_graph_tuple: read edge schema file %s\n", s);
+	printf("cli_graph_component: read edge schema file %s\n", s);
 #endif
 	fd = open(s, O_RDWR | O_CREAT, 0644);
 	if (fd < 0) {
@@ -100,6 +107,8 @@ cli_graph_component_neighbors(char *cmdline, int *pos)
 	}
 	c.se = schema_read(fd, c.el);
 	close(fd);
+
+
 
 	memset(s, 0, BUFSIZE);
 	sprintf(s, "%s/%d/%d/v", grdbdir, gno, cno);
@@ -116,13 +125,51 @@ cli_graph_component_neighbors(char *cmdline, int *pos)
 #endif
 	if(v1 != NULL)
 		printf("we have found a vertex using these crazy methods now we need to find all the verticies %llu \n", v1->id);
+
+	/* Create visited file */
+	memset(s, 0, BUFSIZE);
+	sprintf(s, "%s/%d/%d/visited", grdbdir, gno, cno);
+#if _DEBUG
+	printf("cli_graph_component_new: open vertex file %s\n", s);
+#endif
+	fd = open(s, O_RDWR | O_CREAT, 0644);
+	if (fd < 0)
+		return;
+
+	/* Write first vertex to the visited file we don't need schema */
+	int visited_value = vertex_write_visited(&v, fd);
+	if (visited_value == 2)
+		printf("I visited this one before");
 	
+	/* read it back develope how I will do this */
+	visited_id = component_load_visited_id(fd);
+#if _DEBUG
+	if (visited_id <= 0)
+
+		printf("cli_graph_component: something is wrong in the visited loading");
+#endif
+	close(fd);
+	if (visited_id > 0)
+		vertex_set_id(&visited_v, visited_id);
+		visited_v1 = &visited_v;
+		printf("the visited idea works*******************visited %llu \n", visited_v1->id);
+
+
 	//I am attempting to bastardize edge read to pick up the first vertex that matches and print out the edge
 	
+	/* create the neighbors file for this vertex id*/
+	memset(neighbors_file_string, 0, BUFSIZE);
+	sprintf(neighbors_file_string, "%s/%d/%d/neighbors/%d", grdbdir, gno, cno, i);
+#if _DEBUG
+	printf("cli_graph_component: read neighbors file %s\n", s);
+#endif
+	neighbors_fd = open(neighbors_file_string, O_RDWR | O_CREAT, 0644);
+	if (neighbors_fd < 0) 
+	{
+		printf("blew it here and blew it there");
+	}
 
-
-
-	/* Open the edge file */
+	/* Open the edge file and call find neighbors */
 	memset(s, 0, BUFSIZE);
 	sprintf(s, "%s/%d/%d/e", grdbdir, gno, cno);
 #if _DEBUG
@@ -138,7 +185,7 @@ cli_graph_component_neighbors(char *cmdline, int *pos)
 	}
 	edge_init(&e);
 	edge_set_vertices(&e, id1, id1);
-	e1 = component_find_edge_by_id(&c, &e);
+	e1 = component_find_neighbor_edges_by_id(&c, &e, neighbors_fd);
 	//printf("trying to catch a fault\n");
 	if (e1 == NULL) {
 		printf("Illegal edge id(s)\n");
@@ -146,64 +193,7 @@ cli_graph_component_neighbors(char *cmdline, int *pos)
 	}
 	close(c.efd);
 
-	printf("we got one edge !!!!  the return value was %ld", e1);
-
-	/*pull back all the verticies for the current graph
-	for (;;)
-	{
-		// s2 is a vertex id for an edge 
-		id2 = (vertexid_t) atoi(s2);
-
-		// Open the edge file 
-		memset(s, 0, BUFSIZE);
-		sprintf(s, "%s/%d/%d/e", grdbdir, gno, cno);
-#if _DEBUG
-		printf("cli_graph_tuple: open edge file %s\n", s);
-#endif
-		c.efd = open(s, O_RDWR | O_CREAT, 0644);
-		if (c.efd < 0) {
-			printf("Find edge ids (%llu,%llu) failed\n",
-				id1, id2);
-			return;
-		}
-		edge_init(&e);
-		edge_set_vertices(&e, id1, id2);
-		e1 = component_find_edge_by_ids(&c, &e);
-		if (e1 == NULL) {
-			printf("Illegal edge id(s)\n");
-			return;
-		}
-		close(c.efd);
-		//playing around with a few concepts.
-		if (e <=0)
-		{
-			//this means the egdge exits
-		}
-	}
-	*/
-	/*Load the appropriate schema 
-	memset(s, 0, BUFSIZE);
-	sprintf(s, "%s/%d/%d/%s",
-		grdbdir, gno, cno, (st == VERTEX ? "sv" : "se"));
-	#if _DEBUG
-		printf("cli_graph_schema_add: read schema file %s\n", s);
-	#endif
-	fd = open(s, O_RDWR | O_CREAT, 0644);
-	if (fd < 0)
-		return;
-
-	//create a vertex to pass to the read func
-	
-	vertex_init(&v);
-	vertex_set_id(&v, 1);
-	
-	printf("fuck me running");
-	int len = vertex_read(&v, NULL, 0);
-	if (len >= 0)
-		printf("len is ****** (%d)", len);
-	we can try this horse shit later
-	*/
-
+	close(neighbors_fd);
 #if _DEBUG
 	printf("cli_graph_component_neighbors: \n ");
 	printf("determine neighbors of vertex id %llu\n", id1);
@@ -212,9 +202,141 @@ cli_graph_component_neighbors(char *cmdline, int *pos)
 
 
 static int
-cli_graph_component_connected()
+cli_graph_component_connected(char *cmdline, int *pos)
 {
+	vertexid_t id1, id2;
+	struct edge e;
+	char s[BUFSIZE];
+	char neighbors_file_string[BUFSIZE];
+	struct component c;
+	int fd, i, neighbors_fd, visited_fd, path_fd;
+	int path_result;
+	ssize_t  path_ok;
+
+	memset(s, 0, BUFSIZE);
+	nextarg(cmdline, pos, " ", s);
+	id1 = (vertexid_t) atoi(s);
+	i = atoi(s);
 	
+	memset(s, 0, BUFSIZE);
+	nextarg(cmdline, pos, " ", s);
+	id2 = (vertexid_t) atoi(s);
+
+	/* Setup a component for searching */
+	component_init(&c);
+
+	/* Load enums */
+	fd = enum_file_open(grdbdir, gno, cno);
+	if (fd < 0) {
+		printf("Open enum file failed\n");
+		return -1;
+	}
+	enum_list_init(&(c.el));
+	enum_list_read(&(c.el), fd);
+	close(fd);
+
+	/* Load the edge schema */
+	memset(s, 0, BUFSIZE);
+	sprintf(s, "%s/%d/%d/se", grdbdir, gno, cno);
+#if _DEBUG
+	printf("cli_graph_component: read edge schema file %s\n", s);
+#endif
+	fd = open(s, O_RDWR | O_CREAT, 0644);
+	if (fd < 0) {
+		printf("Open edge schema file failed\n");
+		return -1;
+	}
+	c.se = schema_read(fd, c.el);
+	close(fd);
+
+	//initialize the edge to the desired connected edge
+	edge_init(&e);
+	edge_set_vertices(&e, id1, id2);
+
+	/* Create visited file */
+	memset(s, 0, BUFSIZE);
+	sprintf(s, "%s/%d/%d/visited", grdbdir, gno, cno);
+#if _DEBUG
+	printf("cli_graph_component_new: open visited file %s\n", s);
+#endif
+	visited_fd = open(s, O_RDWR | O_CREAT, 0644);
+	if (visited_fd < 0)
+		printf("error opening visited_fd ");
+
+	/* Create path file */
+	memset(s, 0, BUFSIZE);
+	sprintf(s, "%s/%d/%d/path/%d", grdbdir, gno, cno, i);
+#if _DEBUG
+	printf("cli_graph_component_new: open path file %s\n", s);
+#endif
+	path_fd = open(s, O_RDWR | O_CREAT, 0644);
+	if (path_fd < 0)
+		printf("error opening path fd ");
+	
+	/*create neighbors file*/
+	memset(neighbors_file_string, 0, BUFSIZE);
+	sprintf(neighbors_file_string, "%s/%d/%d/neighbors/%d", grdbdir, gno, cno, i);
+#if _DEBUG
+	printf("cli_graph_component: open neighbors file %s\n", s);
+#endif
+	neighbors_fd = open(neighbors_file_string, O_RDWR | O_CREAT, 0644);
+	if (neighbors_fd < 0) 
+		printf("error opening neighbors_fd \n");
+	
+	/* Open the edge file and call find neighbors */
+	memset(s, 0, BUFSIZE);
+	sprintf(s, "%s/%d/%d/e", grdbdir, gno, cno);
+#if _DEBUG
+	printf("cli_graph_tuple: open edge file %s\n", s);
+#endif
+	c.efd = open(s, O_RDWR | O_CREAT, 0644);
+	
+	if (c.efd < 0) {
+		
+		printf("Find edges ids (%llu,%llu) failed\n",
+			id1, id2);
+		return -1;
+	}
+
+	/*
+	 *find the path if the path exist we should get a 1 
+	 * if we hit an eof we get 0
+	 * errors are returned as -1
+	 */ 
+
+	path_result = get_neighbors_path(&e, 
+									 c,  
+									 neighbors_fd, 
+									 visited_fd, 
+									 path_fd,
+									 grdbdir, 
+									 gno, 
+									 cno);
+	printf("the result of the search was %d \n", path_result);
+	if (path_result == 1)
+	{
+		path_ok = vertex_write_path(id1, path_fd);
+		if (path_ok == 2 || path_ok <= 0)
+			printf("bad path write");
+		int pv = print_path(path_fd);
+		printf("it seems like there is no way to get a zero %d\n ", pv);
+		if (pv  == 0)
+		{
+			printf("great work you found a path\n");
+		}
+	}
+	if (path_result == 0)
+	{
+		printf("looks like theres no path better luck next time\n");
+	}
+
+	//need to clean up the path file and the visited file
+
+	delete_visited(grdbdir, gno, cno);
+	printf("really really\n");
+	delete_path(grdbdir, gno, cno, i);
+	printf("getting somewhere now\n");
+
 	return 0;
 }
 
@@ -301,6 +423,8 @@ cli_graph_component_union(char *cmdline, int *pos)
 	}
 }
 
+
+
 void
 cli_graph_component(char *cmdline, int *pos)
 {
@@ -326,6 +450,9 @@ cli_graph_component(char *cmdline, int *pos)
 
 	else if (strcmp(s, "union") == 0 || strcmp(s, "u") == 0)
 		cli_graph_component_union(cmdline, pos);
+
+	else if (strcmp(s, "connected") == 0 || strcmp(s, "con") == 0)
+		cli_graph_component_connected(cmdline, pos);
 
 	else if (strlen(s) == 0) {
 		FILE *out;
