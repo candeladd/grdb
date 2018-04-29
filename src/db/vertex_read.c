@@ -24,7 +24,7 @@ vertex_read(vertex_t v, schema_t schema, int fd)
 
 	assert(v != NULL);
 #if _DEBUG
-	printf("*****the file that was read was %d\n", fd);
+	printf("the file that was read was %d\n", fd);
 	printf("vertex_read: read vertex %llu\n", v->id);
 #endif
 	if (schema == NULL)
@@ -64,6 +64,45 @@ vertex_read(vertex_t v, schema_t schema, int fd)
 		}
 		if (id == v->id)
 			return len;
+	}
+	return 0;
+}
+
+/*
+ * The visited file is arranged as a packed list of vertexid_t. If
+ * an error or some sort occurs, the value (-1) is returned.  The value
+ * zero means the end-of-file was reached.  Otherwise, the number of bytes
+ * read in for the vertex tuple are returned.
+ */
+vertexid_t
+vertex_read_visited(int fd)
+{
+	off_t off;
+	ssize_t len, size;
+	vertexid_t id;
+	char buf[sizeof(vertexid_t)];
+
+#if _DEBUG
+	printf("*****the file that was read was %d\n", fd);
+#endif
+
+	/* Search for vertex id in current component */
+	for (off = 0;;) {
+		lseek(fd, off, SEEK_SET);
+		len = read(fd, buf, sizeof(vertexid_t));
+		if (len != sizeof(vertexid_t)) {
+#if _DEBUG
+			printf("vertex_read: ");
+			printf("read %lu bytes of vertex id\n bad bad no good in vertex_read_neighbor\n", len);
+#endif
+			return (-1);
+		}
+		off += sizeof(vertexid_t);
+
+		id = *((vertexid_t *) buf);
+		
+
+		return id;
 	}
 	return 0;
 }

@@ -21,8 +21,10 @@ int components_get_index(graph_t g, component_t c);
 void cli_component_print(
 	FILE *out, char *gname, char *cname, int with_tuples);
 void cli_components_print(FILE *out, char *gname, int with_tuples);
+void cli_path_print(int path_fd);
 void cli_graphs_print();
-
+void delete_visited(char *grdbdir, int gno, int cno);
+void delete_path(char *grdbdir, int gno, int cno, int node);
 void cli_graph_enum(char *cmdline, int *pos);
 void cli_graph(char *cmdline, int *pos);
 

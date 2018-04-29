@@ -58,6 +58,11 @@ struct graph {
 	struct graph *next;
 };
 
+struct graph_info{
+	int grdbdir;
+
+};
+
 typedef struct vertex *vertex_t;
 typedef struct edge *edge_t;
 typedef struct component *component_t;
@@ -70,7 +75,11 @@ void vertex_set_id(vertex_t v, vertexid_t id);
 void vertex_print(FILE *out, vertex_t v);
 void vertex_copy_by_field(char *buf1, schema_t s1, char *buf2, schema_t s2);
 ssize_t vertex_read(vertex_t v, schema_t schema, int fd);
+vertexid_t vertex_read_visited(int fd);
 ssize_t vertex_write(vertex_t v, int fd);
+ssize_t vertex_write_visited(vertex_t v, int fd);
+ssize_t vertex_write_path(vertexid_t path_id, int fd);
+ssize_t vertex_write_neighors(vertexid_t write_id, int fd);
 
 void vertex_write_from(
         vertexid_t id,
@@ -84,16 +93,30 @@ int edge_file_init(int gidx, int cidx);
 void edge_set_vertices(edge_t e, vertexid_t id1, vertexid_t id2);
 void edge_print(FILE *out, edge_t e);
 ssize_t edge_read(edge_t e, schema_t schema, int fd);
-ssize_t edge_neighbor_read(edge_t e, schema_t schema, int fd);
+ssize_t edge_neighbor_read(edge_t e, schema_t schema, int fd, int neighbor_fd);
+
+ssize_t get_neighbors_path(edge_t e, 
+				   struct component c, 
+				   int neighbors_fd, 
+				   int visited_fd, 
+				   int path_fd,
+				   char *grdbdir,
+        		   int gidx,
+        		   int cidx);
+
 ssize_t edge_write(edge_t e, int fd);
 
 void component_init(component_t c);
 void component_file_init(int gidx, int cidx);
 void component_insert_vertex(component_t c, vertex_t v);
 vertex_t component_find_vertex_by_id(component_t c, vertex_t v);
+vertexid_t component_load_visited_id(int fd);
+edge_t component_find_neighbor_edges_by_id(component_t c, edge_t e, int neighbor_fd);
+int component_get_path(component_t c, edge_t e, int neighbor_fd, int visited_fd, int path_fd);
 edge_t component_find_edge_by_ids( component_t c, edge_t e);
 void component_insert_edge(component_t c, edge_t e);
 void component_print(FILE *out, component_t c, int with_tuples);
+int print_path(int path_fd);
 
 /* Print the neighbors of the specified vertex and component */
 void component_neighbors(char *grdbdir, int gidx, int cidx, vertexid_t id);
@@ -158,7 +181,7 @@ int component_union(int cidx1, int cidx2, char *grdbdir, int gno);
  */
 int
 component_sssp(
-	char *grdbdir,
+	char *co,
 	int gidx,
 	int cidx,
 	vertexid_t id1,

@@ -46,6 +46,59 @@ component_find_vertex_by_id(component_t c, vertex_t v)
 	return NULL;
 }
 
+//this function loads in the vertexs in the visited file one at a time
+vertexid_t
+component_load_visited_id(int fd)
+{
+	vertexid_t len;
+
+	/* So we just want to get the vertices we have visited out of the visited file */
+	/* all we need to return is the vertex_id we loaded */
+	len = vertex_read_visited(fd);
+	if (len > 0)
+		return len;
+
+	return NULL;
+}
+
+int component_load_neighbor(int fd)
+{
+	return 0;
+}
+
+
+/* we need to get the next not visited neighbor
+parameters vertex
+*
+int
+get_next_not_visited_neighbor(vertex_t v, int neighbor_fd, int visited_fd)
+{
+	char s[BUFSIZE];
+	vertexid_t neighbor_id;
+	vertexid_t visited_id;
+	for(;;)
+	{
+		neighbor_id = component_load_neighbor(neighbor_fd);
+		if (neighbor_id != NULL)
+		{
+			for (;;)
+			{
+				visited_id = component_load_visited_id(visited_fd);
+				//we reached eof and didnt find a match
+				if(visited_id == 0)
+				{
+					printf("found a good neighbor");
+					return neighbor_id; 
+				}
+				if(visited_id == neighbor_id)
+					printf("neighbor was visited");
+					break;
+
+			}
+		}
+	}
+}
+*/
 void
 component_insert_vertex(component_t c, vertex_t v)
 {
@@ -75,7 +128,7 @@ component_find_edge_by_ids(component_t c, edge_t e)
 }
 
 edge_t
-component_find_edge_by_id(component_t c, edge_t e)
+component_find_neighbor_edges_by_id(component_t c, edge_t e, int neighbor_fd)
 {
 	int len;
 
@@ -86,14 +139,20 @@ component_find_edge_by_id(component_t c, edge_t e)
 	 * Assume e was allocated and e->id1 and e->id2 were set by
 	 * the caller
 	 */
-	len = edge_neighbor_read(e, c->se, c->efd);
+	len = edge_neighbor_read(e, c->se, c->efd, neighbor_fd);
 	if (len > 0)
 	{
-		printf("the len was %ld", len);
+		printf("the len was %d", len);
 		return e;
 	}
-	printf("the len was %ld", len);
+	printf("the len was %d", len);
 	return NULL;
+}
+
+int
+component_get_path(component_t c, edge_t e, int neighbors_fd, int visited_fd, int path_fd)
+{
+	return 0;
 }
 
 void
@@ -193,3 +252,69 @@ component_print(FILE *out, component_t c, int with_tuples)
 #endif
 	fprintf(out, "})");
 }
+
+/* we need to clean up the visited file  after 
+ * searching for a path
+ */
+void
+delete_visited(char *grdbdir, int gno, int cno)
+{
+	int ret;
+	char s[BUFSIZE];
+	memset(s, 0, BUFSIZE);
+	sprintf(s, "/bin/rm %s/%d/%d/visited", grdbdir, gno, cno);
+	ret = system(s);
+	if (ret < 0)
+		printf("deleting visited failed\n");
+}
+
+/* we need to clean up the visited file  after 
+ * searching for a path
+ */
+void delete_path(char *grdbdir, int gno, int cno, int node)
+{
+	int ret;
+	char s[BUFSIZE];
+	memset(s, 0, BUFSIZE);
+	sprintf(s, "/bin/rm %s/%d/%d/path/%d", grdbdir, gno, cno, node);
+	ret = system(s);
+	if (ret < 0)
+		printf("deleting visited failed\n");
+}
+
+/*reads all the vertexid in the path file
+ * and print them to the console
+*/
+int print_path(int path_fd)
+{
+	off_t off;
+	ssize_t len;
+	vertexid_t id;
+	char buf[sizeof(vertexid_t)];
+
+#if _DEBUG
+	printf("*****the file that was read was %d\n", path_fd);
+#endif
+
+	/* Search for vertex id in current component */
+	for (off = 0;;) {
+		lseek(path_fd, off, SEEK_SET);
+		len = read(path_fd, buf, sizeof(vertexid_t));
+		if (len != sizeof(vertexid_t)) {
+#if _DEBUG
+			printf("vertex_read: ");
+			printf("read %lu bytes of vertex id\n bad bad no good in vertex_read_neighbor\n", len);
+#endif
+			return (-1);
+		}
+		off += sizeof(vertexid_t);
+
+		id = *((vertexid_t *) buf);
+
+		printf("one vertex in the path is %llu \n", id);
+	}
+	return 0;
+}
+
+
+
