@@ -23,10 +23,7 @@ cli_graph(char *cmdline, int *pos)
 	assert (pos != NULL);
 
 	memset(s, 0, BUFSIZE);
-	printf("the arg is %s \n", cmdline);
 	nextarg(cmdline, pos, " ", s);
-	printf("s comes back as %s :\n", s);
-	printf("the next fararg is %s \n", cmdline);
 	if (strlen(s) == 0) {
 		cli_graphs_print();
 		return;
@@ -40,7 +37,6 @@ cli_graph(char *cmdline, int *pos)
 		return;
 
 	} else if (strcmp(s, "component") == 0 || strcmp(s, "c") == 0) {
-		printf("welle delle \n");
 		cli_graph_component(cmdline, pos);
 		return;
 

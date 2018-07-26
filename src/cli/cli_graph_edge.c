@@ -15,9 +15,9 @@ cli_graph_edge(char *cmdline, int *pos)
 	struct component c;
 	struct vertex v, w;
 	vertex_t v1, w1;
-	struct edge e;
+	struct edge e, back_e;
 	char s[BUFSIZE];
-	int fd, i, j;
+	int fd, i, j, undir_fd;
 
 	/* Get the vertex id arguments */
 	memset(s, 0, BUFSIZE);
@@ -131,6 +131,7 @@ cli_graph_edge(char *cmdline, int *pos)
 	/* Add the new edge */
 	memset(s, 0, BUFSIZE);
 	sprintf(s, "%s/%d/%d/e", grdbdir, gno, cno);
+	
 #if _DEBUG
 	printf("cli_graph_edge: open edge file %s\n", s);
 #endif
@@ -142,6 +143,25 @@ cli_graph_edge(char *cmdline, int *pos)
 #endif
 		return;
 	}
+	/* create a undirected edge file*/
+	memset(s, 0, BUFSIZE);
+	sprintf(s, "%s/%d/%d/undir_e", grdbdir, gno, cno);
+	
+#if _DEBUG
+	printf("cli_graph_edge: open edge file %s\n", s);
+#endif
+	undir_fd = open(s, O_RDWR | O_CREAT, 0644);
+	if (undir_fd < 0) {
+#if _DEBUG
+		printf("cli_graph_edge: ");
+		printf("open undir edge file failed (%s)\n", strerror(errno));
+#endif
+		return;
+	}
+	// create a back edge
+	edge_init(&back_e);
+	edge_set_vertices(&back_e, j, i);
+	// create edge
 	edge_init(&e);
 	edge_set_vertices(&e, i, j);
 	if (c.se == NULL) {
@@ -153,12 +173,21 @@ cli_graph_edge(char *cmdline, int *pos)
 		printf("cli_graph_edge: edge schema is NOT NULL\n");
 #endif
 		tuple_init(&(e.tuple), c.se);
+		tuple_init(&(back_e.tuple), c.se);
 		if (e.tuple == NULL) {
 #if _DEBUG
 			printf("cli_graph_edge: tuple is NULL\n");
 #endif
 		}
 	}
+	/*write to the edge file*/
 	edge_write(&e, fd);
+	/* write the edge and back edge to the undir file*/
+	edge_write(&e, undir_fd);
+	edge_write(&back_e, undir_fd);
+#if _DEBUG
+	printf("wrote undirected %llu -> %llu\n", e.id1, e.id2);
+	printf("Then wrote undirected %llu -> %llu\n", back_e.id1, back_e.id2);
+#endif
 	close(fd);
 }

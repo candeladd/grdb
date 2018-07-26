@@ -104,7 +104,6 @@ vertex_write_neighors(vertexid_t write_id, int fd)
 #if _DEBUG
 	printf("vertex_write: write vertex %llu\n", write_id);
 #endif
-	printf("the neighbor I am writing is (%llu)\n", write_id);
 	/* Search for vertex id in current component */
 	for (off = 0;;) {
 		lseek(fd, off, SEEK_SET);
@@ -115,11 +114,12 @@ vertex_write_neighors(vertexid_t write_id, int fd)
 		if (len != sizeof(vertexid_t))
 			return (-1);
 		off += sizeof(vertexid_t);
-#if _DEBUG
-		printf("vertex_write: read %lu bytes of vertex id\n", len);
-#endif
+
 		id = *((vertexid_t *) buf);
+#if _DEBUG
+printf("vertex_write: read %lu bytes of vertex id\n", len);
 		printf("we found an id (%llu) in neighbors\n", id);
+#endif
 		if (id == write_id) {
 			/*
 			 * The vertex id is already on secondary storage
@@ -148,9 +148,6 @@ vertex_write_neighors(vertexid_t write_id, int fd)
 #endif
 		return len;
 	}
-
-
-
 	return 0;
 }
 
@@ -183,19 +180,22 @@ vertex_write_visited(vertex_t v, int fd)
 			break;
 		if (len != sizeof(vertexid_t))
 			return (-1);
+
+		id = *((vertexid_t *) buf);
 #if _DEBUG
 		printf("vertex_write_visited: read %lu bytes of vertex id\n", len);
-		
-#endif
-		id = *((vertexid_t *) buf);
 		printf("we found an id (%llu) in visited\n", id);
+#endif
 		if (id == v->id) 
 		{
 			/*
 			 * The vertex id is already on secondary storage
 			 * i.e. it has been visited
 			 */
-			printf("something is wrong in the visited (%llu) \n", id);
+#if _DEBUG
+		printf("Already visited (%llu) \n", id);
+#endif
+			
 			return 2;
 		}
 	}
@@ -250,13 +250,14 @@ vertex_write_path(vertexid_t path_id, int fd)
 		printf("vertex_write_visited: read %lu bytes of vertex id\n", len);
 #endif
 		id = *((vertexid_t *) buf);
-		printf("********heres your path id (%llu)\n", id);
 		if (id == path_id) {
 			/*
 			 * The vertex id is already on secondary storage
 			 * i.e. it has been visited
 			 */
+#if _DEBUG
 			printf("this should never happen (%llu) \n", id);
+#endif
 			return 2;
 		}
 	}

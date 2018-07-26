@@ -60,15 +60,18 @@ cli_graph_component_new()
 static void
 cli_graph_component_neighbors(char *cmdline, int *pos)
 {
-	vertexid_t id1, id2, visited_id;
-	vertex_t v1, visited_v1;
+	vertexid_t id1, id2;
 	struct vertex v, visited_v;
 	struct edge e;
-	edge_t e1;
 	char s[BUFSIZE];
 	char neighbors_file_string[BUFSIZE];
 	struct component c;
 	int fd, i, neighbors_fd;
+
+#if _DEBUG
+	printf("cli_graph_component_neighbors: \n ");
+	printf("determine neighbors of vertex id %llu\n", id1);
+#endif
 
 	component_init(&c);
     
@@ -107,55 +110,6 @@ cli_graph_component_neighbors(char *cmdline, int *pos)
 	}
 	c.se = schema_read(fd, c.el);
 	close(fd);
-
-
-
-	memset(s, 0, BUFSIZE);
-	sprintf(s, "%s/%d/%d/v", grdbdir, gno, cno);
-#if _DEBUG
-	printf("cli_graph_edge: open vertex file %s\n", s);
-#endif
-	c.vfd = open(s, O_RDWR);
-	v1 = component_find_vertex_by_id(&c, &v);
-	close(c.vfd);
-#if _DEBUG
-	if (v1 == NULL)
-
-		printf("cli_graph_edge: vertex %d not found\n", i);
-#endif
-	if(v1 != NULL)
-		printf("we have found a vertex using these crazy methods now we need to find all the verticies %llu \n", v1->id);
-
-	/* Create visited file */
-	memset(s, 0, BUFSIZE);
-	sprintf(s, "%s/%d/%d/visited", grdbdir, gno, cno);
-#if _DEBUG
-	printf("cli_graph_component_new: open vertex file %s\n", s);
-#endif
-	fd = open(s, O_RDWR | O_CREAT, 0644);
-	if (fd < 0)
-		return;
-
-	/* Write first vertex to the visited file we don't need schema */
-	int visited_value = vertex_write_visited(&v, fd);
-	if (visited_value == 2)
-		printf("I visited this one before");
-	
-	/* read it back develope how I will do this */
-	visited_id = component_load_visited_id(fd);
-#if _DEBUG
-	if (visited_id <= 0)
-
-		printf("cli_graph_component: something is wrong in the visited loading");
-#endif
-	close(fd);
-	if (visited_id > 0)
-		vertex_set_id(&visited_v, visited_id);
-		visited_v1 = &visited_v;
-		printf("the visited idea works*******************visited %llu \n", visited_v1->id);
-
-
-	//I am attempting to bastardize edge read to pick up the first vertex that matches and print out the edge
 	
 	/* create the neighbors file for this vertex id*/
 	memset(neighbors_file_string, 0, BUFSIZE);
@@ -166,7 +120,7 @@ cli_graph_component_neighbors(char *cmdline, int *pos)
 	neighbors_fd = open(neighbors_file_string, O_RDWR | O_CREAT, 0644);
 	if (neighbors_fd < 0) 
 	{
-		printf("blew it here and blew it there");
+		printf("error opening neighbors file");
 	}
 
 	/* Open the edge file and call find neighbors */
@@ -185,159 +139,205 @@ cli_graph_component_neighbors(char *cmdline, int *pos)
 	}
 	edge_init(&e);
 	edge_set_vertices(&e, id1, id1);
-	e1 = component_find_neighbor_edges_by_id(&c, &e, neighbors_fd);
-	//printf("trying to catch a fault\n");
-	if (e1 == NULL) {
-		printf("Illegal edge id(s)\n");
-		return;
-	}
+	component_find_neighbor_edges_by_id(&c, &e, neighbors_fd);
 	close(c.efd);
 
 	close(neighbors_fd);
-#if _DEBUG
-	printf("cli_graph_component_neighbors: \n ");
-	printf("determine neighbors of vertex id %llu\n", id1);
-#endif
+	delete_neighbors(grdbdir, gno, cno);
 }
 
 
-static int
-cli_graph_component_connected(char *cmdline, int *pos)
+/*check that the search vertices exist then calls weak connection*/
+static void
+cli_graph_component_connected_weak(char *cmdline, int *pos)
 {
-	vertexid_t id1, id2;
-	struct edge e;
-	char s[BUFSIZE];
-	char neighbors_file_string[BUFSIZE];
 	struct component c;
-	int fd, i, neighbors_fd, visited_fd, path_fd;
-	int path_result;
-	ssize_t  path_ok;
-
+	int result, fd;
+	vertexid_t id1, id2;
+	struct vertex v, w;
+	vertex_t v1, w1;
+	char s[BUFSIZE];
+	
 	memset(s, 0, BUFSIZE);
 	nextarg(cmdline, pos, " ", s);
 	id1 = (vertexid_t) atoi(s);
-	i = atoi(s);
+	
 	
 	memset(s, 0, BUFSIZE);
 	nextarg(cmdline, pos, " ", s);
 	id2 = (vertexid_t) atoi(s);
 
-	/* Setup a component for searching */
+	/*check that our search vertices exist*/
+	vertex_init(&v);
+	vertex_set_id(&v, id1);
+
 	component_init(&c);
 
 	/* Load enums */
 	fd = enum_file_open(grdbdir, gno, cno);
-	if (fd < 0) {
-		printf("Open enum file failed\n");
-		return -1;
+	if (fd >= 0) {
+		enum_list_init(&(c.el));
+		c.el = enum_list_read(&(c.el), fd);
+		close(fd);
 	}
-	enum_list_init(&(c.el));
-	enum_list_read(&(c.el), fd);
-	close(fd);
-
-	/* Load the edge schema */
+	/* Load vertex schema */
+	schema_init(&(c.sv));
 	memset(s, 0, BUFSIZE);
-	sprintf(s, "%s/%d/%d/se", grdbdir, gno, cno);
-#if _DEBUG
-	printf("cli_graph_component: read edge schema file %s\n", s);
-#endif
-	fd = open(s, O_RDWR | O_CREAT, 0644);
-	if (fd < 0) {
-		printf("Open edge schema file failed\n");
-		return -1;
-	}
-	c.se = schema_read(fd, c.el);
-	close(fd);
-
-	//initialize the edge to the desired connected edge
-	edge_init(&e);
-	edge_set_vertices(&e, id1, id2);
-
-	/* Create visited file */
-	memset(s, 0, BUFSIZE);
-	sprintf(s, "%s/%d/%d/visited", grdbdir, gno, cno);
-#if _DEBUG
-	printf("cli_graph_component_new: open visited file %s\n", s);
-#endif
-	visited_fd = open(s, O_RDWR | O_CREAT, 0644);
-	if (visited_fd < 0)
-		printf("error opening visited_fd ");
-
-	/* Create path file */
-	memset(s, 0, BUFSIZE);
-	sprintf(s, "%s/%d/%d/path/%d", grdbdir, gno, cno, i);
-#if _DEBUG
-	printf("cli_graph_component_new: open path file %s\n", s);
-#endif
-	path_fd = open(s, O_RDWR | O_CREAT, 0644);
-	if (path_fd < 0)
-		printf("error opening path fd ");
-	
-	/*create neighbors file*/
-	memset(neighbors_file_string, 0, BUFSIZE);
-	sprintf(neighbors_file_string, "%s/%d/%d/neighbors/%d", grdbdir, gno, cno, i);
-#if _DEBUG
-	printf("cli_graph_component: open neighbors file %s\n", s);
-#endif
-	neighbors_fd = open(neighbors_file_string, O_RDWR | O_CREAT, 0644);
-	if (neighbors_fd < 0) 
-		printf("error opening neighbors_fd \n");
-	
-	/* Open the edge file and call find neighbors */
-	memset(s, 0, BUFSIZE);
-	sprintf(s, "%s/%d/%d/e", grdbdir, gno, cno);
-#if _DEBUG
-	printf("cli_graph_tuple: open edge file %s\n", s);
-#endif
-	c.efd = open(s, O_RDWR | O_CREAT, 0644);
-	
-	if (c.efd < 0) {
-		
-		printf("Find edges ids (%llu,%llu) failed\n",
-			id1, id2);
-		return -1;
+	sprintf(s, "%s/%d/%d/sv", grdbdir, gno, cno);
+	fd = open(s, O_RDWR);
+	if (fd >= 0) {
+		c.sv = schema_read(fd, c.el);
+		close(fd);
 	}
 
-	/*
-	 *find the path if the path exist we should get a 1 
-	 * if we hit an eof we get 0
-	 * errors are returned as -1
-	 */ 
+	memset(s, 0, BUFSIZE);
+	sprintf(s, "%s/%d/%d/v", grdbdir, gno, cno);
+#if _DEBUG
+	printf("cli_graph_edge: open vertex file %s\n", s);
+#endif
+	c.vfd = open(s, O_RDWR);
+	v1 = component_find_vertex_by_id(&c, &v);
+	close(c.vfd);
 
-	path_result = get_neighbors_path(&e, 
-									 c,  
-									 neighbors_fd, 
-									 visited_fd, 
-									 path_fd,
-									 grdbdir, 
-									 gno, 
-									 cno);
-	printf("the result of the search was %d \n", path_result);
-	if (path_result == 1)
+
+	vertex_init(&w);
+	vertex_set_id(&w, id2);
+
+	memset(s, 0, BUFSIZE);
+	sprintf(s, "%s/%d/%d/v", grdbdir, gno, cno);
+#if _DEBUG
+	printf("cli_graph_edge: ");
+	printf("open vertex file %s\n", s);
+#endif
+	c.vfd = open(s, O_RDWR);
+	w1 = component_find_vertex_by_id(&c, &w);
+	close(c.vfd);
+
+
+	if (v1 == NULL)  {
+		printf("Invalid search %llu not found in component\n", id1);
+		return;
+	}
+	else if(w1 == NULL)
 	{
-		path_ok = vertex_write_path(id1, path_fd);
-		if (path_ok == 2 || path_ok <= 0)
-			printf("bad path write");
-		int pv = print_path(path_fd);
-		printf("it seems like there is no way to get a zero %d\n ", pv);
-		if (pv  == 0)
-		{
-			printf("great work you found a path\n");
-		}
+		printf("Invalid search %llu not found in component\n", id2);
+		return;
 	}
-	if (path_result == 0)
+
+	result = component_connected_weak( grdbdir, gno, cno, id1, id2);
+
+	
+
+}
+
+static void
+cli_graph_component_connected_strong(char *cmdline, int *pos)
+{
+	struct component c;
+	int result, fd;
+	vertexid_t id1, id2;
+	struct vertex v, w;
+	vertex_t v1, w1;
+	char s[BUFSIZE];
+	
+
+	
+	memset(s, 0, BUFSIZE);
+	nextarg(cmdline, pos, " ", s);
+		if (strlen(s) == 0) {
+		printf("Missing vertex id\n");
+		return;
+	}
+	id1 = (vertexid_t) atoi(s);
+	
+	
+	memset(s, 0, BUFSIZE);
+	nextarg(cmdline, pos, " ", s);
+		if (strlen(s) == 0) {
+		printf("Missing vertex id\n");
+		return;
+	}
+	id2 = (vertexid_t) atoi(s);
+
+
+	/*check that the vertices exist in component*/
+	vertex_init(&v);
+	vertex_set_id(&v, id1);
+
+	component_init(&c);
+
+	/* Load enums */
+	fd = enum_file_open(grdbdir, gno, cno);
+	if (fd >= 0) {
+		enum_list_init(&(c.el));
+		c.el = enum_list_read(&(c.el), fd);
+		close(fd);
+	}
+	/* Load vertex schema */
+	schema_init(&(c.sv));
+	memset(s, 0, BUFSIZE);
+	sprintf(s, "%s/%d/%d/sv", grdbdir, gno, cno);
+	fd = open(s, O_RDWR);
+	if (fd >= 0) {
+		c.sv = schema_read(fd, c.el);
+		close(fd);
+	}
+
+	memset(s, 0, BUFSIZE);
+	sprintf(s, "%s/%d/%d/v", grdbdir, gno, cno);
+#if _DEBUG
+	printf("cli_graph_edge: open vertex file %s\n", s);
+#endif
+	c.vfd = open(s, O_RDWR);
+	v1 = component_find_vertex_by_id(&c, &v);
+	close(c.vfd);
+
+	vertex_init(&w);
+	vertex_set_id(&w, id2);
+
+	memset(s, 0, BUFSIZE);
+	sprintf(s, "%s/%d/%d/v", grdbdir, gno, cno);
+#if _DEBUG
+	printf("cli_graph_edge: ");
+	printf("open vertex file %s\n", s);
+#endif
+	c.vfd = open(s, O_RDWR);
+	w1 = component_find_vertex_by_id(&c, &w);
+	close(c.vfd);
+
+	if (v1 == NULL)  {
+		printf("Invalid search %llu not found in component\n", id1);
+		return;
+	}
+	else if(w1 == NULL)
 	{
-		printf("looks like theres no path better luck next time\n");
+		printf("Invalid search %llu not found in component\n", id2);
+		return;
+	}
+#if _DEBUG
+	printf("calling strong connection");
+#endif
+	result = component_connected_strong( grdbdir, gno, cno, id1, id2);
+}
+
+static void
+cli_graph_component_connected(char *cmdline, int *pos)
+{
+	char arg[BUFSIZE];
+
+	memset(arg, 0, BUFSIZE);
+	nextarg(cmdline, pos, " ", arg);
+
+	if (strcmp(arg, "weak") == 0 || strcmp(arg, "w") == 0)
+		cli_graph_component_connected_weak(cmdline, pos);
+	else if (strcmp(arg, "strong") == 0|| strcmp(arg, "s") == 0)
+		cli_graph_component_connected_strong(cmdline, pos);
+	else
+	{
+		printf("Please select strong (s) or weak (w) connectedness test.\n");
+		printf("Example: graph component connected weak v1 v2 \n");
 	}
 
-	//need to clean up the path file and the visited file
-
-	delete_visited(grdbdir, gno, cno);
-	printf("really really\n");
-	delete_path(grdbdir, gno, cno, i);
-	printf("getting somewhere now\n");
-
-	return 0;
 }
 
 static void
@@ -451,7 +451,7 @@ cli_graph_component(char *cmdline, int *pos)
 	else if (strcmp(s, "union") == 0 || strcmp(s, "u") == 0)
 		cli_graph_component_union(cmdline, pos);
 
-	else if (strcmp(s, "connected") == 0 || strcmp(s, "con") == 0)
+	else if (strcmp(s, "connected") == 0 || strcmp(s, "c") == 0)
 		cli_graph_component_connected(cmdline, pos);
 
 	else if (strlen(s) == 0) {
